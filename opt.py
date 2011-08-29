@@ -50,16 +50,50 @@ def solver(saldo):
 
         yield Transaction([debtor], [creditor], amount)
 
-def parser(data):
-    st_map = {('>',0):1,
-              ('<',0):2,
-              (':',1):3,
-              (':',2):4}
-    st = 0
-    for line in data:
-        if line:
-            for tok in shlex.shlex(line):
-                if tok 
+
+class Parser:
+    def __init__(self):
+        self.stack = []
+        self.state = 0
+
+    def got_comma(self):
+        pass
+
+    def got_gt(self):
+        pass
+
+    def got_lt(self):
+        pass
+
+    def got_colon(self):
+        pass
+
+    def got_nl(self):
+        pass
+
+    def __call__(self, data):
+        lexer = shlex.shlex(data+'\n')
+        lexer.whitespace = ' \t\r'
+
+        st_map = {(0,','):(0,self.got_colon),
+                  (0,'>'):(1,self.got_gt),
+                  (0,'<'):(1,self.got_lt),
+                  (1,','):(1,self.got_comma),
+                  (1,':'):(2,self.got_colon),
+                  (2,'\n'):(0,self.got_nl)
+                 }
+
+        for token in lexer:
+            key = (self.state, token)
+            if key in st_map:
+                state, func =  st_map[key]
+                func()
+                self.state = state
+            else:
+                self.stack.append(token)
+
+        if self.state:
+            raise Exception('Error parsing data')
 
 
 def printer(transactions):
