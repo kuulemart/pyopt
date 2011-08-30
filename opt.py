@@ -3,27 +3,25 @@ import string
 import fileinput
 import collections
 
-
-Transaction = collections.namedtuple('Transaction', 'debtors,creditors,amount')
+# transaction
+Tx = collections.namedtuple('Tx', 'debtors,creditors,amount')
 
 
 class Solver:
+    """Simplifies transactions"""
+    def _get_saldo(self, txs):
+        saldo = {}
+        def _update(names, amount):
+            amount_per_name = amount / len(names)
+            for name in names:
+                saldo[name] = saldo.get(name, 0) + amount_per_name
+        for tx in txs:
+            _update(tx.debtors, -1*tx.amount)
+            _update(tx.creditors, tx.amount)
+        return [item for item in saldo.items() if item[1]]
 
-    def _update_saldo(self, saldo, transaction):
-        def _update(lst, i = 1):
-            amt = transaction.amount / len(lst)
-            for item in lst:
-                saldo[item] = saldo.get(item, 0) + amt*i
-        _update(transaction.debtors, -1)
-        _update(transaction.creditors)
-
-    def __call__(self, transactions):
-        saldo  = {}
-
-        for transaction in transactions:
-            self._update_saldo(saldo, transaction)
-
-        saldo = [item for item in saldo.items() if item[1]]
+    def solve(self, txs):
+        saldo = self._get_saldo(txs) 
         saldo.sort(key = lambda x:x[1])
 
         while saldo:
@@ -39,45 +37,60 @@ class Solver:
                     saldo.append((debtor, credit - debt))
                 saldo.sort(key = lambda x:x[1])
 
-            yield Transaction([debtor], [creditor], amount)
+            yield Tx([debtor], [creditor], amount)
 
 
-class Transform:
+class Transformer:
+    """Transform data to and from textual representation"""
+    def __init__(self, sym_sep=',', sym_debt='>', sym_cred='<', sym_amnt=':'):
+        self.sym_sep = sym_sep
+        self.sym_debt = sym_debt
+        self.sym_cred = sym_cred
+        self.sym_amnt = sym_amnt
 
-    def read(self, lines):
-        for line in lines:
+    def _split(self, names):
+        return map(string.strip, names.split(self.sym_sep))
+
+    def read(self, iterator):
+        for line in iterator:
             if line:
-                actors, amount = line.split(':')
-                amount = float(amount)
-                debtors, x, creditors = actors.partition('>')
+                actors, x, amount = line.partition(self.sym_amnt)
                 if not x:
-                    creditors, x, debtors = actors.partition('<')
-                yield Transaction(map(string.strip, debtors.split(',')),
-                                  map(string.strip, creditors.split(',')),
-                                  amount)
+                    continue
+                debtors, x, creditors = actors.partition(self.sym_debt)
+                if not x:
+                    creditors, x, debtors = actors.partition(self.sym_cred)
+                if not x:
+                    continue
+                yield Tx(self._split(debtors),
+                         self._split(creditors),
+                         float(amount))
 
-    def dump(self, transactions):
-        def _dump_t(t):
-            return '%s > %s : %s' %\
-                (','.join(t.debtors),
-                 ','.join(t.creditors),
-                 t.amount)
+    def dump(self, txs):
+        def _dump_t(tx):
+            return '%s %s %s %s %s' %\
+                (','.join(tx.debtors),
+                self.sym_debt,
+                 ','.join(tx.creditors),
+                 self.sym_amnt,
+                 tx.amount)
 
-        for transaction in transactions:
-            print _dump_t(transaction)
+        for tx in txs:
+            print _dump_t(tx)
 
 
 class Opt:
-    def __init__(self, transform, solver):
-        self.transform = transform
+    """Main optimizer class"""
+    def __init__(self, transformer, solver):
+        self.transformer = transformer
         self.solver = solver
 
     def run(self, data):
-        txs = self.transform.read(data)
-        solved_txs = self.solver(txs)
-        self.transform.dump(solved_txs)
+        txs = self.transformer.read(data)
+        solved_txs = self.solver.solve(txs)
+        self.transformer.dump(solved_txs)
 
 
 if __name__ == '__main__':
-    opt = Opt(Transform(), Solver())
+    opt = Opt(Transformer(), Solver())
     opt.run(fileinput.input(sys.argv[1:]))
