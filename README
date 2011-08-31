@@ -1,0 +1,5 @@
+TODO:
+    * rules
+    * tabbed transformer
+    * min tx solver (slow, checks all combinations) for finding ideal solution
+    * commandline options for choosing transformer and solver and log level

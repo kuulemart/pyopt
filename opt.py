@@ -8,7 +8,7 @@ import decimal
 import logging
 
 logging.basicConfig(level = logging.INFO)
-LOG = logging.getLogger()
+LOG = logging.getLogger('opt')
 
 # transaction
 Tx = collections.namedtuple('Tx', 'debtors,creditors,amount')
@@ -20,7 +20,6 @@ class Solver:
         saldo = {}
         def _update(names, amount):
             _amt = amount / len(names)
-            #_amt = _amt.quantize(decimal.Decimal('0.01'))
             for name in names:
                 saldo[name] = saldo.get(name, 0) + _amt
         for tx in txs:
@@ -110,5 +109,8 @@ class Opt:
 
 
 if __name__ == '__main__':
-    opt = Opt(Transformer(), Solver())
-    opt.run(fileinput.input(sys.argv[1:]))
+    transformer = Transformer()
+    solver = Solver()
+    dataiter = fileinput.input(sys.argv[1:])
+    opt = Opt(transformer, solver)
+    opt.run(dataiter)
