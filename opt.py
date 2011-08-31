@@ -1,8 +1,14 @@
 #!/usr/bin/env python
+
 import sys
 import string
 import fileinput
 import collections
+import decimal
+import logging
+
+logging.basicConfig(level = logging.INFO)
+LOG = logging.getLogger()
 
 # transaction
 Tx = collections.namedtuple('Tx', 'debtors,creditors,amount')
@@ -13,9 +19,10 @@ class Solver:
     def _get_saldo(self, txs):
         saldo = {}
         def _update(names, amount):
-            amount_per_name = amount / len(names)
+            _amt = amount / len(names)
+            #_amt = _amt.quantize(decimal.Decimal('0.01'))
             for name in names:
-                saldo[name] = saldo.get(name, 0) + amount_per_name
+                saldo[name] = saldo.get(name, 0) + _amt
         for tx in txs:
             _update(tx.debtors, -1*tx.amount)
             _update(tx.creditors, tx.amount)
@@ -26,6 +33,7 @@ class Solver:
         saldo.sort(key = lambda x:x[1])
 
         while saldo:
+            logging.debug('saldo: %s' % saldo)
             debtor,debt = saldo.pop(0)
             debt = abs(debt)
             creditor,credit = saldo.pop()
@@ -37,8 +45,11 @@ class Solver:
                 else:
                     saldo.append((debtor, credit - debt))
                 saldo.sort(key = lambda x:x[1])
+            
+            tx = Tx([debtor], [creditor], amount)
+            logging.debug('tx: %s' % str(tx))
 
-            yield Tx([debtor], [creditor], amount)
+            yield tx
 
 
 class Transformer:
@@ -52,20 +63,26 @@ class Transformer:
     def _split(self, names):
         return map(string.strip, names.split(self.sym_sep))
 
+    def _money(self, amount):
+        return str(amount.quantize(decimal.Decimal('0.01')))
+
     def read(self, iterator):
         for line in iterator:
             if line:
-                actors, x, amount = line.partition(self.sym_amnt)
-                if not x:
-                    continue
-                debtors, x, creditors = actors.partition(self.sym_debt)
-                if not x:
-                    creditors, x, debtors = actors.partition(self.sym_cred)
-                if not x:
-                    continue
-                yield Tx(self._split(debtors),
-                         self._split(creditors),
-                         float(amount))
+                try:
+                    actors, x, amount = line.partition(self.sym_amnt)
+                    if not x:
+                        continue
+                    debtors, x, creditors = actors.partition(self.sym_debt)
+                    if not x:
+                        creditors, x, debtors = actors.partition(self.sym_cred)
+                    if not x:
+                        continue
+                    yield Tx(self._split(debtors),
+                             self._split(creditors),
+                             decimal.Decimal(amount))
+                except Exception, e:
+                    raise Exception('Exception %s in line: %s' % (e, line))
 
     def dump(self, txs):
         def _dump_t(tx):
@@ -74,7 +91,7 @@ class Transformer:
                 self.sym_debt,
                  ','.join(tx.creditors),
                  self.sym_amnt,
-                 tx.amount)
+                 self._money(tx.amount))
 
         for tx in txs:
             print _dump_t(tx)
