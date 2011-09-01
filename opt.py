@@ -14,8 +14,32 @@ LOG = logging.getLogger('opt')
 Tx = collections.namedtuple('Tx', 'debtors,creditors,amount')
 
 
+class PluginMount(type):
+    def __init__(cls, name, bases, attrs):
+        if not hasattr(cls, 'plugins'):
+            cls.plugins = []
+        else:
+            cls.plugins.append(cls)
+
+    def get(cls, name, *p, **kw):
+	    for plugin in cls.plugins:
+	        if plugin.name == name:
+		        return plugin(*p, **kw)
+	    raise Exception('Unknown plugin %s' % name)
+
+
 class Solver:
+    __metaclass__ = PluginMount
+
+class Transformer:
+    __metaclass__ = PluginMount
+
+
+class SimpleSolver(Solver):
     """Simplifies transactions"""
+
+    name = 'simple'
+
     def _get_saldo(self, txs):
         saldo = {}
         def _update(names, amount):
@@ -44,15 +68,18 @@ class Solver:
                 else:
                     saldo.append((debtor, credit - debt))
                 saldo.sort(key = lambda x:x[1])
-            
+
             tx = Tx([debtor], [creditor], amount)
             logging.debug('tx: %s' % str(tx))
 
             yield tx
 
 
-class Transformer:
+class DirectedTransformer(Transformer):
     """Transform data to and from textual representation"""
+
+    name = 'directed'
+
     def __init__(self, sym_sep=',', sym_debt='>', sym_cred='<', sym_amnt=':'):
         self.sym_sep = sym_sep
         self.sym_debt = sym_debt
@@ -109,8 +136,8 @@ class Opt:
 
 
 if __name__ == '__main__':
-    transformer = Transformer()
-    solver = Solver()
+    transformer = Transformer.get('directed')
+    solver = Solver.get('simple')
     dataiter = fileinput.input(sys.argv[1:])
     opt = Opt(transformer, solver)
     opt.run(dataiter)
