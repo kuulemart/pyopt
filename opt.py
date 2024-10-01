@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import sys
 import string
@@ -7,7 +7,7 @@ import collections
 import decimal
 import logging
 
-logging.basicConfig(level = logging.INFO)
+logging.basicConfig(level=logging.INFO)
 LOG = logging.getLogger('opt')
 
 # transaction
@@ -22,18 +22,19 @@ class PluginMount(type):
             cls.plugins.append(cls)
 
     def get(cls, name, *p, **kw):
-	    for plugin in cls.plugins:
-	        if plugin.name == name:
-		        return plugin(*p, **kw)
-	    raise Exception('Unknown plugin %s' % name)
+        for plugin in cls.plugins:
+            if plugin.name == name:
+                return plugin(*p, **kw)
+        raise Exception('Unknown plugin %s' % name)
 
 
-class Solver:
-    __metaclass__ = PluginMount
+class Solver(metaclass=PluginMount):
+    pass
 
-class Transformer:
-    __metaclass__ = PluginMount
+class Transformer(metaclass=PluginMount):
+    pass
 
+# ... existing code ...
 
 class SimpleSolver(Solver):
     """Simplifies transactions"""
@@ -87,7 +88,7 @@ class DirectedTransformer(Transformer):
         self.sym_amnt = sym_amnt
 
     def _split(self, names):
-        return map(string.strip, names.split(self.sym_sep))
+        return list(map(str.strip, names.split(self.sym_sep)))
 
     def _money(self, amount):
         return str(amount.quantize(decimal.Decimal('0.01')))
@@ -107,7 +108,7 @@ class DirectedTransformer(Transformer):
                     yield Tx(self._split(debtors),
                              self._split(creditors),
                              decimal.Decimal(amount))
-                except Exception, e:
+                except Exception as e:
                     raise Exception('Exception %s in line: %s' % (e, line))
 
     def dump(self, txs):
@@ -120,7 +121,7 @@ class DirectedTransformer(Transformer):
                  self._money(tx.amount))
 
         for tx in txs:
-            print _dump_t(tx)
+            print(_dump_t(tx))
 
 
 class Opt:
